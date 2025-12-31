@@ -14,8 +14,8 @@ WIDTH, HEIGHT = 2000, 1000  # Window size
 #G = np.longdouble(6.6743015e-11)            # Gravitational constant
 G = np.longdouble(6.6745e-11)
 #SCALE = 3e-9#6e-10               # Scale for visualization (reduces distances)
-SCALE = 1.5e-5
-TIMESTEP = 1#3600            # Time step (2 hour per frame)
+SCALE = 3e-5
+TIMESTEP = 100#3600            # Time step (2 hour per frame)
 
 # Colors for planets
 WHITE = (255, 255, 255)
@@ -139,8 +139,8 @@ def update_positions(bodies, timestep=TIMESTEP):
     for body in bodies:
         total_fx = total_fy = np.longdouble(0)  # Total forces
         # Save previous velocity
-        prev_vx = np.longdouble(body.vx)
-        prev_vy = np.longdouble(body.vy)
+        #prev_vx = np.longdouble(body.vx)
+        #prev_vy = np.longdouble(body.vy)
         if body.visible == False:
             new_coords.append( (float(body.x), float(body.y)) )
             continue
@@ -155,8 +155,8 @@ def update_positions(bodies, timestep=TIMESTEP):
         body.vx += np.longdouble(total_fx / body.mass * TIMESTEP)
         body.vy += np.longdouble(total_fy / body.mass * TIMESTEP)
         # Update coordinates - take the average between previous and new velocity
-        dx = np.longdouble(0.5 * (prev_vx + body.vx) * TIMESTEP)
-        dy = np.longdouble(0.5 * (prev_vy + body.vy) * TIMESTEP)
+        dx = np.longdouble(body.vx * TIMESTEP)
+        dy = np.longdouble(body.vy * TIMESTEP)
         new_coords.append( (float(body.x + dx), float(body.y + dy)) )
         #body.x += 0.5 * (prev_vx + body.vx) * TIMESTEP
         #body.y += 0.5 * (prev_vy + body.vy) * TIMESTEP
@@ -311,12 +311,12 @@ def main():
     earth = Body(0, 0, 10, BLUE, 5.9726e24, real_radius=6.371e6, name="Earth")
     moon = Body(earth.x+3.844e8, 0, 3, GRAY, 7.34767309e22, vy=1023, vx = 0, real_radius=1.7371e6, name="Moon")
 
-    sat_speed = 6100
+    sat_speed = 9000
     vx = earth.vx+0
     vy = earth.vy-sat_speed
     size = 5
     #satellite = Body(earth.x, earth.y+earth.real_radius-size+1000, 3, WHITE, mass=1e3, vx=vx, vy=vy, real_radius=size, name="Satellite")
-    satellite = Body(earth.x-earth.real_radius-1000, earth.y, 3, WHITE, mass=1e3, vx=vx, vy=vy, real_radius=size, name="Satellite")
+    satellite = Body(earth.x-earth.real_radius-400*1000, earth.y, 3, WHITE, mass=1e3, vx=vx, vy=vy, real_radius=size, name="Satellite")
 
     #bodies = [sun, mercury, venus, earth, mars, jupiter, saturn]  # List of all bodies
     bodies = [earth, satellite]  # List of all bodies
