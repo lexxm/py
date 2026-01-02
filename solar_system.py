@@ -14,7 +14,8 @@ WIDTH, HEIGHT = 2000, 1000  # Window size
 #G = np.longdouble(6.6743015e-11)            # Gravitational constant
 G = np.longdouble(6.6745e-11)
 #SCALE = 3e-9#6e-10               # Scale for visualization (reduces distances)
-SCALE = 3e-5
+SCALE = 2e-6
+CENTER_X, CENTER_Y = 0, 0
 TIMESTEP = 100#3600            # Time step (2 hour per frame)
 
 # Colors for planets
@@ -74,8 +75,8 @@ class Body:
         """Draw the body and its orbit on the screen"""
         if not self.visible:
             return
-        x = self.x * SCALE + WIDTH // 2
-        y = self.y * SCALE + HEIGHT // 2
+        x = (self.x-CENTER_X) * SCALE + WIDTH // 2
+        y = (self.y-CENTER_Y) * SCALE + HEIGHT // 2
         # Draw rings for Saturn
         if self.has_rings:
             ring_color = (200, 200, 180)
@@ -95,7 +96,7 @@ class Body:
         n = len(self.orbit)
         #print(self.name, " orbit points: ", n)
         if n > 2:
-            points = [(ox * SCALE + WIDTH // 2, oy * SCALE + HEIGHT // 2) for ox, oy in self.orbit]
+            points = [((ox-CENTER_X) * SCALE + WIDTH // 2, (oy-CENTER_Y) * SCALE + HEIGHT // 2) for ox, oy in self.orbit]
             one_third = n // 3
             two_third = 2 * n // 3
             # First third (oldest points)
@@ -203,11 +204,11 @@ def min_distance_sat_planet(bodies, satellite, planet_idx, steps=10000, timestep
     for step in range(steps):
     # Gravity and movement for planets
         dist_for_sun_prev = math.sqrt(sim_satellite.x**2 + sim_satellite.y**2)
-        planet = sim_bodies[3]
+        planet = sim_bodies[0]
         dist_prev = math.sqrt((sim_satellite.x - planet.x)**2 + (sim_satellite.y - planet.y)**2)
         update_positions(sim_bodies, timestep=timestep)
         dist = math.sqrt((sim_satellite.x - planet.x)**2 + (sim_satellite.y - planet.y)**2)
-        print( "step %d   dist to Earth %.0f   ex: %d %d   sat: %d %d" % (step, dist/1000, sim_satellite.x, sim_satellite.y, planet.x, planet.y) )
+        #print( "step %d   dist to Earth %.0f   ex: %d %d   sat: %d %d" % (step, dist/1000, sim_satellite.x, sim_satellite.y, planet.x, planet.y) )
 
         if not sim_satellite.visible:
             return float('inf'), -1, -1
@@ -221,6 +222,7 @@ def min_distance_sat_planet(bodies, satellite, planet_idx, steps=10000, timestep
         # visualization of satellite trajectory
         #print(globals())
         #print()
+        '''
         win = globals().get('win', None)
         win.fill((0, 0, 0))  # Clear screen
 
@@ -236,7 +238,7 @@ def min_distance_sat_planet(bodies, satellite, planet_idx, steps=10000, timestep
         for body in sim_bodies:
             body.draw(win)  # Draw body
         pygame.display.update()  # Update screen
-
+        '''
         if dist < min_dist:
             min_dist = dist
             min_step = step
@@ -246,56 +248,85 @@ def min_distance_sat_planet(bodies, satellite, planet_idx, steps=10000, timestep
         #    break
     return min_dist, min_step * timestep, min_step
 
-def optimize_satellite_angle(bodies, satellite, start_idx, dest_idx, v0=8000, angle_min=-90, angle_max=90, angle_step=1, steps=10000):
+def optimize_satellite_angle(bodies, satellite, 
+                             start_idx, dest_idx, 
+                             vmin=8000, vmax=12000, vstep=1000, 
+                             angle_min=-90, angle_max=90, angle_step=1, 
+                             #delay_min=0, delay_max=0, delay_step=0,
+                             steps=10000):
     best_angle = None
+    best_speed = None
+    #best_delay = None 
     best_dist = float('inf')
     best_time = 0
     earth = bodies[start_idx]
     mercury = bodies[dest_idx]
-    dx = mercury.x - earth.x
-    dy = mercury.y - earth.y
-    base_angle = math.atan2(dy, dx)
+    #dx = mercury.x - earth.x
+    #dy = mercury.y - earth.y
+    sdist = earth.real_radius + 400*1000
+    #base_angle = math.atan2(dy, dx)
     sat_copy = copy.deepcopy(satellite)
     for da in range(int((angle_max - angle_min) / angle_step) + 1):
-        angle_deg = angle_min + da * angle_step
-        angle_rad = base_angle + math.radians(angle_deg)
-        sat_copy.vx = satellite.vx + v0 * math.cos(angle_rad)
-        sat_copy.vy = satellite.vy + v0 * math.sin(angle_rad)
-        print( "speed vx %.0f vy %.0f " % (sat_copy.vx, sat_copy.vy ) )
-        sat_copy.name = f"Sat {angle_deg:.1f}°"
-        # Create a copy of bodies and add the satellite
-        test_bodies = [copy.deepcopy(b) for b in bodies]
-        #satellite = Body(earth.x, earth.y-earth.real_radius-size-100, 4, WHITE, 1e3, real_radius=size, vx=vx, vy=vy)
-        #test_bodies.append(satellite)
-        min_dist, min_time, min_step = min_distance_sat_planet(test_bodies, satellite=sat_copy, planet_idx=dest_idx, steps=steps, timestep=TIMESTEP)
-        #results.append((angle_deg, min_dist, min_time))
-        print( "angle: %.5f     dist: %e   step: %d" % (angle_deg, min_dist, min_step) )
-        if min_dist < best_dist:
-            best_dist = min_dist
-            best_angle = angle_deg
-            best_time = min_time
-            #best_step = min_step
+        for vind in range(int((vmax - vmin) / vstep) + 1):
+            #for delay_ind in range(int((delay_max - delay_min) / delay_step) + 1):
+            angle_deg = angle_min + da * angle_step
+            angle_rad = math.radians(angle_deg)#base_angle + math.radians(angle_deg)
+            v0 = vmin + vind * vstep
+            #delay = delay_min + delay_ind * delay_step
+            sat_copy.x = earth.x+sdist*math.cos(angle_rad)
+            sat_copy.y = earth.y+sdist*math.sin(angle_rad)
+            sat_copy.vx = v0 * math.cos(angle_rad+math.pi/2)
+            sat_copy.vy = v0 * math.sin(angle_rad+math.pi/2)
+            #print( "speed vx %.0f vy %.0f " % (sat_copy.vx, sat_copy.vy ) )
+            sat_copy.name = f"Sat {angle_deg:.1f}°"
+            # Create a copy of bodies and add the satellite
+            test_bodies = [copy.deepcopy(b) for b in bodies]
+            min_dist, min_time, min_step = min_distance_sat_planet(test_bodies, satellite=sat_copy, planet_idx=dest_idx, steps=steps, timestep=TIMESTEP)
+            #results.append((angle_deg, min_dist, min_time))
+            print( "angle: %.5f     speed   %.5f    dist: %e   step: %d" % (angle_deg, v0, min_dist, min_step) )
+            if min_dist < best_dist:
+                best_dist = min_dist
+                best_angle = angle_deg
+                best_time = min_time
+                best_speed = v0
+                #best_delay = delay
+                #best_step = min_step
     if best_angle is not None:
-        print(f"Best angle: {best_angle:.2f}°, min. distance: {best_dist:.2e} m, time: {best_time/86400:.2f} days")
-    return best_angle, best_dist, best_time#, results
+        print(f"Best angle: {best_angle:.2f}°,   best speed: {best_speed:.3f},    min distance: {best_dist:.2e} m, time: {best_time/86400:.2f} days")
+    return best_angle, best_speed, best_dist, best_time#, results
 
-def optimize_satellite_angle_recurent(bodies, satellite, start_idx, dest_idx, v0=8000, angle_min=-180, angle_max=180, angle_step=1, steps=10000):
+def optimize_satellite_angle_recurent(bodies, satellite, 
+                                      start_idx, dest_idx, 
+                                      vmin=8000, vmax=12000, vstep = 500, 
+                                      angle_min=-180, angle_max=180, angle_step=1,
+                                      #delay_min=0, delay_max=0, delay_step=0,
+                                      steps=10000):
     for k in range(5):
         print("================================ Iteration %d %.5f %.5f %.5f ===========================" 
             % (k+1, angle_min, angle_max, angle_step))
-        (best_angle, best_dist, best_time) = optimize_satellite_angle(bodies, satellite, start_idx=start_idx, dest_idx=dest_idx, v0=v0, 
-                                                angle_min=angle_min, angle_max=angle_max, angle_step=angle_step)
+        (best_angle, best_v, best_dist, best_time) = optimize_satellite_angle(bodies, satellite, 
+                                                                      start_idx=start_idx, dest_idx=dest_idx, 
+                                                                      vmin=vmin, vmax=vmax, vstep=vstep,
+                                                                      #delay_min=delay_min, delay_max=delay_max, delay_step=delay_step,
+                                                                      angle_min=angle_min, angle_max=angle_max, angle_step=angle_step)
         if best_angle is None:
             break
         angle_min = best_angle - 2*angle_step
         angle_max = best_angle + 2*angle_step
         angle_step = angle_step / 4
+        #delay_min = best_delay - 2*delay_step
+        #delay_max = best_delay + 2*delay_step
+        #delay_step = delay_step / 4
+        vmin = best_v - 2*vstep
+        vmax = best_v + 2*vstep
+        vstep = vstep / 4
     #print(f"Best angle: {best_angle:.2f}°, min. distance: {best_dist:.2e} m, time: {best_time/86400:.2f} days")
     return best_angle
 
  # Main function that runs the simulation
 def main():
-    global SCALE
+    global SCALE, TIMESTEP
+    global CENTER_X, CENTER_Y
     # Create objects: Sun and planets
     '''
     sun = Body(0, 0, 20, YELLOW, 1.98892e30, real_radius=6.9634e8, name="Sun")
@@ -310,18 +341,29 @@ def main():
     '''
     earth = Body(0, 0, 10, BLUE, 5.9726e24, real_radius=6.371e6, name="Earth")
     moon = Body(earth.x+3.844e8, 0, 3, GRAY, 7.34767309e22, vy=1023, vx = 0, real_radius=1.7371e6, name="Moon")
+    first_correction = False
 
-    sat_speed = 9000
-    vx = earth.vx+0
-    vy = earth.vy-sat_speed
+    sat_speed = 10846.875
     size = 5
     #satellite = Body(earth.x, earth.y+earth.real_radius-size+1000, 3, WHITE, mass=1e3, vx=vx, vy=vy, real_radius=size, name="Satellite")
-    satellite = Body(earth.x-earth.real_radius-400*1000, earth.y, 3, WHITE, mass=1e3, vx=vx, vy=vy, real_radius=size, name="Satellite")
+    sdist = earth.real_radius + 400*1000
+    angle_rad = math.radians(-142.0)
+    x = earth.x+sdist*math.cos(angle_rad)
+    y = earth.y+sdist*math.sin(angle_rad)
+    vx = sat_speed * math.cos(angle_rad+math.pi/2)
+    vy = sat_speed * math.sin(angle_rad+math.pi/2)
+    satellite = Body(x, y, 3, WHITE, mass=1e3, vx=vx, vy=vy, real_radius=size, name="Satellite")
 
     #bodies = [sun, mercury, venus, earth, mars, jupiter, saturn]  # List of all bodies
-    bodies = [earth, satellite]  # List of all bodies
+    bodies = [earth, moon, satellite]  # List of all bodies
     '''
-    sat_angle = optimize_satellite_angle_recurent(bodies, satellite, start_idx=3, dest_idx=1, v0=sat_speed, angle_min=0, angle_max=180, angle_step=5)
+    sat_angle = optimize_satellite_angle_recurent(bodies, satellite, 
+                                                  start_idx=0, dest_idx=1, 
+                                                  vmin=9000, vmax=12000, vstep=200,
+                                                  #delay_min=0, delay_max=1000, delay_step=100,
+                                                  angle_min=-180, angle_max=180, angle_step=10,
+                                                  steps=5000)
+    return
     if sat_angle is None:
         print("Could not find optimal angle.")
         return
@@ -332,22 +374,7 @@ def main():
     satellite.vx = sat_speed * math.cos(angle_rad)
     satellite.vy = sat_speed * math.sin(angle_rad)
     '''
-    #angle_deg = 0
-    #angle_rad = base_angle + math.radians(angle_deg)
-    #bodies.append(satellite)
-
-    # Example usage: find optimal angle for approach to Mercury
-    #angle_deg, min_dist, min_time, final_angle = find_optimal_satellite_angle(
-    #    bodies, earth, target_planet_idx=1, v0=8000, max_iter=10, angle_eps=0.01, steps=10000, timestep=7200)
-    #print(f"\nOptimal launch angle: {angle_deg:.3f}°, minimum distance: {min_dist:.2e} m, time: {min_time/86400:.2f} days, final angle: {final_angle:.3f}°\n")
-
-    # For saving the satellite trajectory
-    #sat_positions = []
-    #optimize_satellite_angle(bodies, start_idx=3, dest_idx=1, v0=8000, angle_min=-90, angle_max=90, angle_step=1, steps=20000)
-
-    # Call function to estimate minimum distance
-    #min_dist, min_time = min_distance_sat_mercury(bodies, satellite_idx=len(bodies)-1, mercury_idx=3)
-    #print(f"Minimum distance satellite-Mercury: {min_dist:.2e} m, time: {min_time/86400:.2f} days")
+    
     run = True
     clock = pygame.time.Clock()
     step = 0
@@ -367,12 +394,29 @@ def main():
             if event.type == pygame.K_PLUS or event.type == pygame.KSCAN_RSHIFT:
                 SCALE *= 1.25
 
-        dist = math.sqrt((bodies[0].x - bodies[1].x)**2 + (bodies[0].y - bodies[1].y)**2)-bodies[0].real_radius - bodies[1].real_radius
-        speed = math.sqrt(bodies[1].vx**2 + bodies[1].vy**2)
-        print( "step %d   dist to Earth %.0f    sat: %d %d    Vsat: %d" % (step, dist/1000, bodies[1].x/1000, bodies[1].y/1000, speed) )
+        dist = math.sqrt((satellite.x - bodies[1].x)**2 + (satellite.y - bodies[1].y)**2)-satellite.real_radius - bodies[1].real_radius
+        speed = math.sqrt(satellite.vx**2 + satellite.vy**2)
+        print( "step %d   dist to Moon %.0f    sat: %d %d    Vsat: %d" % (step, dist/1000, satellite.x/1000, satellite.y/1000, speed) )
         # Update positions and velocities of all bodies
         update_positions(bodies, timestep=TIMESTEP)
 
+        if step > 1700:
+            TIMESTEP = 10 
+        if dist < 130000 and not first_correction:
+            koeff = 1900 / speed
+            satellite.vx *= koeff
+            satellite.vy *= koeff
+            first_correction = True
+        if bodies[-1].visible:
+            CENTER_X, CENTER_Y = (bodies[-1].x+bodies[1].x)//2, (bodies[-1].y+bodies[1].y)//2
+            #(self.x-CENTER_X) * SCALE + WIDTH // 2
+            #x_km * scale = x_pix
+            SCALE_X = WIDTH / (abs(bodies[-1].x - bodies[1].x))
+            SCALE_Y = HEIGHT / (abs(bodies[-1].y - bodies[1].y))
+            SCALE = min( 1e-4, min(SCALE_X, SCALE_Y)*0.5)
+        else:
+            CENTER_X, CENTER_Y = 0, 0
+            SCALE = 2e-6
         for body in bodies:
             # Save satellite position
             #if idx == len(bodies) - 1:
